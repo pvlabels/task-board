@@ -46,6 +46,10 @@ Then open <http://localhost:4173>.
 The site is served from the repository root by GitHub Pages (`main` branch). Any push to `main`
 publishes the change.
 
+Pages caches assets for ten minutes, so `index.html` loads `styles.css` and `app.js` with a `?v=`
+query string. **Bump both when you change either file**, otherwise a returning visitor can get new
+markup alongside a stale script.
+
 ## Configuration
 
 The board options exposed as props in the design file are constants at the top of
