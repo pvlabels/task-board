@@ -1,23 +1,23 @@
-/* Task Board — a dot-grid board of notes and wireframe steps.
+/* Task Board — a dot-grid board of nodes joined by connectors.
    Vanilla JS, no build step, state persisted to localStorage. */
 (function () {
   'use strict';
 
   var KEY = 'taskboard.v1';
+  var THEME_KEY = 'taskboard.theme';
 
   /* Board options — these mirror the props exposed by the design file. */
   var CONFIG = {
-    snap: true,          // snap card positions to the dot grid
+    snap: true,          // snap node positions to the dot grid
     gridSize: 24,        // dot grid pitch, in px
     connectors: 'elbow'  // 'elbow' | 'straight'
   };
 
-  var WIDTH = { note: 244, box: 200 };
-  var KIND_LABEL = { note: 'Note', box: 'Step' };
-  var TITLE_PLACEHOLDER = { note: 'Heading', box: 'Step name' };
+  var NODE_WIDTH = 244;
 
   var ICON_CLOSE = '<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"></path></svg>';
-  var ICON_LINK = '<svg viewBox="0 0 24 24"><path d="M15 7h3a5 5 0 0 1 0 10h-3m-6 0H6a5 5 0 0 1 0-10h3M8 12h8"></path></svg>';
+  var ICON_SUN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>';
+  var ICON_MOON = '<svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>';
 
   var SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -25,9 +25,16 @@
   /* State                                                              */
   /* ------------------------------------------------------------------ */
 
-  var state = { boards: [], activeId: null, linkFrom: null };
-  var drag = null;
-  var cardEls = {};   // item id -> card element
+  var state = {
+    boards: [],
+    activeId: null,
+    linkMode: false,   // "Link nodes" tool is armed
+    linkFrom: null     // node picked as the start of a connection
+  };
+
+  var drag = null;      // moving a node
+  var linkDrag = null;  // dragging from one node to another
+  var cardEls = {};     // node id -> card element
 
   var uid = 0;
   function nid() { return Date.now().toString(36) + (uid++).toString(36); }
@@ -36,14 +43,36 @@
     try { localStorage.setItem(KEY, JSON.stringify(state.boards)); } catch (e) {}
   }
 
+  /* Older boards stored "note" and "box" elements; both are now nodes. */
+  function migrate(boards) {
+    return boards.map(function (b) {
+      return {
+        id: b.id || nid(),
+        name: b.name || 'Untitled product',
+        items: (b.items || []).map(function (it) {
+          return {
+            id: it.id || nid(),
+            kind: 'node',
+            x: it.x || 0,
+            y: it.y || 0,
+            title: it.title || '',
+            bullets: Array.isArray(it.bullets) ? it.bullets : []
+          };
+        }),
+        links: (b.links || []).filter(function (l) { return l && l.from && l.to; })
+      };
+    });
+  }
+
   function load() {
     var boards = [];
     try { boards = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { boards = []; }
     if (!Array.isArray(boards) || !boards.length) {
       boards = [{ id: nid(), name: 'Untitled product', items: [], links: [] }];
     }
-    state.boards = boards;
-    state.activeId = boards[0].id;
+    state.boards = migrate(boards);
+    state.activeId = state.boards[0].id;
+    save(); // normalise older stored shapes in place
   }
 
   function activeBoard() {
@@ -70,6 +99,7 @@
 
   var el = {
     boardCount: document.getElementById('boardCount'),
+    themeToggle: document.getElementById('themeToggle'),
     form: document.getElementById('newBoardForm'),
     draft: document.getElementById('draft'),
     boardList: document.getElementById('boardList'),
@@ -77,13 +107,47 @@
     emptyState: document.getElementById('emptyState'),
     activeName: document.getElementById('activeName'),
     hint: document.getElementById('hint'),
-    addNote: document.getElementById('addNote'),
-    addBox: document.getElementById('addBox'),
+    addNode: document.getElementById('addNode'),
+    linkNodes: document.getElementById('linkNodes'),
+    deleteBoard: document.getElementById('deleteBoard'),
     canvas: document.getElementById('canvas'),
     linksG: document.getElementById('linksG')
   };
 
   document.documentElement.style.setProperty('--grid-size', CONFIG.gridSize + 'px');
+
+  /* ------------------------------------------------------------------ */
+  /* Theme                                                              */
+  /* ------------------------------------------------------------------ */
+
+  var systemDark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+  function currentTheme() {
+    var attr = document.documentElement.getAttribute('data-theme');
+    if (attr === 'light' || attr === 'dark') return attr;
+    return systemDark && systemDark.matches ? 'dark' : 'light';
+  }
+
+  function syncThemeButton() {
+    var dark = currentTheme() === 'dark';
+    el.themeToggle.innerHTML = dark ? ICON_SUN : ICON_MOON;
+    var label = dark ? 'Switch to light theme' : 'Switch to dark theme';
+    el.themeToggle.title = label;
+    el.themeToggle.setAttribute('aria-label', label);
+  }
+
+  el.themeToggle.addEventListener('click', function () {
+    var next = currentTheme() === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+    syncThemeButton();
+  });
+
+  if (systemDark && systemDark.addEventListener) {
+    systemDark.addEventListener('change', function () {
+      if (!document.documentElement.getAttribute('data-theme')) syncThemeButton();
+    });
+  }
 
   /* ------------------------------------------------------------------ */
   /* Sidebar                                                            */
@@ -152,20 +216,35 @@
     if (state.activeId === id) return;
     state.activeId = id;
     state.linkFrom = null;
+    linkDrag = null;
     renderSidebar();
     renderBoard();
   }
 
   function deleteBoard(id) {
+    var board = null;
+    for (var i = 0; i < state.boards.length; i++) {
+      if (state.boards[i].id === id) board = state.boards[i];
+    }
+    if (!board) return;
+
+    var n = board.items.length;
+    if (n && !window.confirm('Delete "' + board.name + '" and its ' + n + (n === 1 ? ' node' : ' nodes') + '?')) return;
+
     state.boards = state.boards.filter(function (b) { return b.id !== id; });
     if (state.activeId === id) {
       state.activeId = state.boards.length ? state.boards[0].id : null;
       state.linkFrom = null;
+      linkDrag = null;
     }
     save();
     renderSidebar();
     renderBoard();
   }
+
+  el.deleteBoard.addEventListener('click', function () {
+    if (state.activeId) deleteBoard(state.activeId);
+  });
 
   el.form.addEventListener('submit', function (e) {
     e.preventDefault();
@@ -195,57 +274,76 @@
     el.activeName.textContent = board.name || 'Untitled product';
     renderHint();
 
-    // Clear cards, keeping the connector layer in place.
+    // Clear nodes, keeping the connector layer in place.
     Object.keys(cardEls).forEach(function (id) {
       if (cardEls[id].parentNode) cardEls[id].parentNode.removeChild(cardEls[id]);
     });
     cardEls = {};
 
     board.items.forEach(function (item) {
-      var card = buildCard(item);
-      cardEls[item.id] = card;
-      el.canvas.appendChild(card);
+      mountCard(buildCard(item), item.id);
     });
 
     renderLinks();
   }
 
-  function renderHint() {
-    el.hint.textContent = state.linkFrom ? 'Pick a second element to connect' : '';
+  function mountCard(card, id) {
+    cardEls[id] = card;
+    el.canvas.appendChild(card);
+    fitAll(card);
+    return card;
   }
 
-  function addItem(kind) {
+  function renderHint() {
+    if (state.linkFrom) el.hint.textContent = 'Now pick the node to connect it to';
+    else if (state.linkMode) el.hint.textContent = 'Grab a node to start a connection';
+    else el.hint.textContent = '';
+  }
+
+  function addNode() {
     var board = activeBoard();
     if (!board) return;
+    setLinkMode(false);
+
     var g = CONFIG.gridSize;
     var n = board.items.length;
     var item = {
       id: nid(),
-      kind: kind,
+      kind: 'node',
       x: g * 2 + (n % 4) * g * 11,
       y: g * 2 + Math.floor(n / 4) * g * 7,
       title: '',
-      bullets: kind === 'note' ? [''] : []
+      bullets: ['']
     };
     board.items.push(item);
     save();
 
-    var card = buildCard(item);
-    cardEls[item.id] = card;
-    el.canvas.appendChild(card);
+    var card = mountCard(buildCard(item), item.id);
     refreshCounts();
     renderLinks();
 
-    var titleInput = card.querySelector('.card-title');
-    if (titleInput) titleInput.focus();
+    var title = card.querySelector('.card-title');
+    if (title) title.focus();
   }
 
-  el.addNote.addEventListener('click', function () { addItem('note'); });
-  el.addBox.addEventListener('click', function () { addItem('box'); });
+  el.addNode.addEventListener('click', addNode);
+  el.linkNodes.addEventListener('click', function () { setLinkMode(!state.linkMode); });
 
   /* ------------------------------------------------------------------ */
-  /* Cards                                                              */
+  /* Nodes                                                              */
   /* ------------------------------------------------------------------ */
+
+  /* Grow a textarea to fit its content, so text wraps to the next line
+     rather than running off the side. */
+  function fit(ta) {
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  }
+
+  function fitAll(root) {
+    var list = root.querySelectorAll('textarea');
+    for (var i = 0; i < list.length; i++) fit(list[i]);
+  }
 
   function buildCard(item) {
     var card = document.createElement('div');
@@ -253,7 +351,7 @@
     card.dataset.id = item.id;
     card.style.left = item.x + 'px';
     card.style.top = item.y + 'px';
-    card.style.width = WIDTH[item.kind] + 'px';
+    card.style.width = NODE_WIDTH + 'px';
 
     /* head */
     var head = document.createElement('div');
@@ -261,24 +359,13 @@
 
     var kind = document.createElement('span');
     kind.className = 'card-kind';
-    kind.textContent = KIND_LABEL[item.kind];
-
-    var link = document.createElement('button');
-    link.className = 'card-act link';
-    link.type = 'button';
-    link.title = 'Connect to another element';
-    link.setAttribute('aria-label', 'Connect to another element');
-    link.innerHTML = ICON_LINK;
-    link.addEventListener('click', function (e) {
-      e.stopPropagation();
-      toggleLink(item.id);
-    });
+    kind.textContent = 'Node';
 
     var del = document.createElement('button');
     del.className = 'card-act del';
     del.type = 'button';
-    del.title = 'Delete';
-    del.setAttribute('aria-label', 'Delete');
+    del.title = 'Delete node';
+    del.setAttribute('aria-label', 'Delete node');
     del.innerHTML = ICON_CLOSE;
     del.addEventListener('click', function (e) {
       e.stopPropagation();
@@ -286,22 +373,36 @@
     });
 
     head.appendChild(kind);
-    head.appendChild(link);
     head.appendChild(del);
 
     /* body */
     var body = document.createElement('div');
     body.className = 'card-body';
 
-    var title = document.createElement('input');
+    var title = document.createElement('textarea');
     title.className = 'card-title';
-    title.type = 'text';
+    title.rows = 1;
     title.value = item.title;
-    title.placeholder = TITLE_PLACEHOLDER[item.kind];
-    title.setAttribute('aria-label', TITLE_PLACEHOLDER[item.kind]);
+    title.placeholder = 'Heading';
+    title.setAttribute('aria-label', 'Node heading');
     title.addEventListener('input', function () {
       item.title = title.value;
+      fit(title);
       save();
+      renderLinks();
+    });
+    title.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (!item.bullets.length) {
+          item.bullets.push('');
+          save();
+          rebuildCard(item, 0);
+        } else {
+          var first = card.querySelector('.bullet textarea');
+          if (first) first.focus();
+        }
+      }
     });
     body.appendChild(title);
 
@@ -312,24 +413,22 @@
     });
     body.appendChild(bullets);
 
-    if (item.kind === 'note') {
-      var add = document.createElement('button');
-      add.className = 'add-bullet';
-      add.type = 'button';
-      add.textContent = '+ bullet';
-      add.addEventListener('click', function () {
-        item.bullets.push('');
-        save();
-        rebuildCard(item, item.bullets.length - 1);
-      });
-      body.appendChild(add);
-    }
+    var add = document.createElement('button');
+    add.className = 'add-bullet';
+    add.type = 'button';
+    add.textContent = '+ bullet';
+    add.addEventListener('click', function () {
+      item.bullets.push('');
+      save();
+      rebuildCard(item, item.bullets.length - 1);
+    });
+    body.appendChild(add);
 
     card.appendChild(head);
     card.appendChild(body);
 
     card.addEventListener('pointerdown', function (e) {
-      startDrag(e, item, card);
+      onCardPointerDown(e, item, card);
     });
 
     return card;
@@ -343,25 +442,27 @@
     dot.className = 'dot';
     dot.textContent = '·';
 
-    var input = document.createElement('input');
-    input.type = 'text';
-    input.value = text;
-    input.placeholder = 'Note';
-    input.setAttribute('aria-label', 'Note');
-    input.dataset.index = String(index);
+    var ta = document.createElement('textarea');
+    ta.rows = 1;
+    ta.value = text;
+    ta.placeholder = 'Note';
+    ta.setAttribute('aria-label', 'Note');
+    ta.dataset.index = String(index);
 
-    input.addEventListener('input', function () {
-      item.bullets[index] = input.value;
+    ta.addEventListener('input', function () {
+      item.bullets[index] = ta.value;
+      fit(ta);
       save();
+      renderLinks();
     });
 
-    input.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') {
+    ta.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         item.bullets.splice(index + 1, 0, '');
         save();
         rebuildCard(item, index + 1);
-      } else if (e.key === 'Backspace' && !input.value && item.bullets.length > 1) {
+      } else if (e.key === 'Backspace' && !ta.value && item.bullets.length > 1) {
         e.preventDefault();
         item.bullets.splice(index, 1);
         save();
@@ -370,21 +471,22 @@
     });
 
     row.appendChild(dot);
-    row.appendChild(input);
+    row.appendChild(ta);
     return row;
   }
 
-  /* Rebuild one card in place — used when the bullet count changes, since
-     that changes the card height and therefore its connectors. */
+  /* Rebuild one node in place — used when the bullet count changes, since
+     that changes its height and therefore its connectors. */
   function rebuildCard(item, focusBullet) {
     var old = cardEls[item.id];
     var next = buildCard(item);
     cardEls[item.id] = next;
     if (old && old.parentNode) old.parentNode.replaceChild(next, old);
     else el.canvas.appendChild(next);
+    fitAll(next);
 
     if (typeof focusBullet === 'number') {
-      var target = next.querySelector('.bullet input[data-index="' + focusBullet + '"]');
+      var target = next.querySelector('.bullet textarea[data-index="' + focusBullet + '"]');
       if (target) {
         target.focus();
         var end = target.value.length;
@@ -400,6 +502,7 @@
     board.items = board.items.filter(function (i) { return i.id !== id; });
     board.links = board.links.filter(function (l) { return l.from !== id && l.to !== id; });
     if (state.linkFrom === id) state.linkFrom = null;
+    if (linkDrag && linkDrag.fromId === id) linkDrag = null;
     save();
 
     var card = cardEls[id];
@@ -411,29 +514,73 @@
     renderLinks();
   }
 
-  function toggleLink(id) {
-    var board = activeBoard();
-    if (!board) return;
+  /* ------------------------------------------------------------------ */
+  /* Link mode                                                          */
+  /* ------------------------------------------------------------------ */
 
-    if (!state.linkFrom) {
-      state.linkFrom = id;
-    } else if (state.linkFrom === id) {
-      state.linkFrom = null;
-    } else {
-      var from = state.linkFrom;
-      var exists = board.links.some(function (l) { return l.from === from && l.to === id; });
-      board.links = exists
-        ? board.links.filter(function (l) { return !(l.from === from && l.to === id); })
-        : board.links.concat([{ from: from, to: id }]);
-      state.linkFrom = null;
-      save();
-    }
+  function setLinkMode(on) {
+    state.linkMode = !!on;
+    state.linkFrom = null;
+    linkDrag = null;
+    el.linkNodes.classList.toggle('is-active', state.linkMode);
+    el.linkNodes.setAttribute('aria-pressed', String(state.linkMode));
+    el.canvas.classList.toggle('is-linking', state.linkMode);
+    syncLinkClasses();
+    renderHint();
+    renderLinks();
+  }
 
+  function syncLinkClasses() {
     Object.keys(cardEls).forEach(function (cid) {
       cardEls[cid].classList.toggle('is-linking', state.linkFrom === cid);
     });
-    renderHint();
-    renderLinks();
+  }
+
+  function connect(fromId, toId) {
+    var board = activeBoard();
+    if (!board || fromId === toId) return;
+    var exists = board.links.some(function (l) { return l.from === fromId && l.to === toId; });
+    board.links = exists
+      ? board.links.filter(function (l) { return !(l.from === fromId && l.to === toId); })
+      : board.links.concat([{ from: fromId, to: toId }]);
+    save();
+  }
+
+  function canvasPoint(e) {
+    var r = el.canvas.getBoundingClientRect();
+    return {
+      x: e.clientX - r.left + el.canvas.scrollLeft,
+      y: e.clientY - r.top + el.canvas.scrollTop
+    };
+  }
+
+  function onCardPointerDown(e, item, card) {
+    if (e.button !== undefined && e.button !== 0) return;
+
+    if (state.linkMode) {
+      e.preventDefault();
+      if (state.linkFrom && state.linkFrom !== item.id) {
+        // Second click of a click-then-click connection.
+        connect(state.linkFrom, item.id);
+        state.linkFrom = null;
+        linkDrag = null;
+      } else if (state.linkFrom === item.id) {
+        state.linkFrom = null;
+        linkDrag = null;
+      } else {
+        state.linkFrom = item.id;
+        var p = canvasPoint(e);
+        linkDrag = { fromId: item.id, x: p.x, y: p.y, moved: false };
+      }
+      syncLinkClasses();
+      renderHint();
+      renderLinks();
+      return;
+    }
+
+    var t = e.target;
+    if (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.closest('button')) return;
+    startDrag(e, item, card);
   }
 
   /* ------------------------------------------------------------------ */
@@ -441,17 +588,13 @@
   /* ------------------------------------------------------------------ */
 
   function startDrag(e, item, card) {
-    if (e.button !== undefined && e.button !== 0) return;
-    var t = e.target;
-    if (t.tagName === 'INPUT' || t.closest('button')) return;
-
-    var r = el.canvas.getBoundingClientRect();
+    var p = canvasPoint(e);
     drag = {
       id: item.id,
       item: item,
       card: card,
-      dx: e.clientX - r.left + el.canvas.scrollLeft - item.x,
-      dy: e.clientY - r.top + el.canvas.scrollTop - item.y
+      dx: p.x - item.x,
+      dy: p.y - item.y
     };
     card.classList.add('is-dragging');
     try { card.setPointerCapture(e.pointerId); } catch (err) {}
@@ -459,10 +602,19 @@
   }
 
   function onMove(e) {
+    if (linkDrag) {
+      var lp = canvasPoint(e);
+      linkDrag.x = lp.x;
+      linkDrag.y = lp.y;
+      linkDrag.moved = true;
+      renderLinks();
+      return;
+    }
+
     if (!drag) return;
-    var r = el.canvas.getBoundingClientRect();
-    var x = Math.max(0, snap(e.clientX - r.left + el.canvas.scrollLeft - drag.dx));
-    var y = Math.max(0, snap(e.clientY - r.top + el.canvas.scrollTop - drag.dy));
+    var p = canvasPoint(e);
+    var x = Math.max(0, snap(p.x - drag.dx));
+    var y = Math.max(0, snap(p.y - drag.dy));
     if (x === drag.item.x && y === drag.item.y) return;
     drag.item.x = x;
     drag.item.y = y;
@@ -471,7 +623,28 @@
     renderLinks();
   }
 
-  function endDrag() {
+  function onUp(e) {
+    if (linkDrag) {
+      if (linkDrag.moved) {
+        // Released after dragging: connect to whatever node is under the pointer.
+        var under = document.elementFromPoint(e.clientX, e.clientY);
+        var target = under && under.closest ? under.closest('.card') : null;
+        if (target && target.dataset.id && target.dataset.id !== linkDrag.fromId) {
+          connect(linkDrag.fromId, target.dataset.id);
+        }
+        state.linkFrom = null;
+        linkDrag = null;
+        syncLinkClasses();
+        renderHint();
+        renderLinks();
+      } else {
+        // A plain click: keep the node picked, waiting for the second one.
+        linkDrag = null;
+        renderLinks();
+      }
+      return;
+    }
+
     if (!drag) return;
     drag.card.classList.remove('is-dragging');
     drag = null;
@@ -479,8 +652,11 @@
   }
 
   window.addEventListener('pointermove', onMove);
-  window.addEventListener('pointerup', endDrag);
-  window.addEventListener('pointercancel', endDrag);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', function () {
+    if (linkDrag) { linkDrag = null; renderLinks(); }
+    if (drag) { drag.card.classList.remove('is-dragging'); drag = null; save(); }
+  });
 
   /* ------------------------------------------------------------------ */
   /* Connectors                                                         */
@@ -488,10 +664,8 @@
 
   function boxOf(item) {
     var card = cardEls[item.id];
-    var w = card ? card.offsetWidth : WIDTH[item.kind];
-    var h = card
-      ? card.offsetHeight
-      : (item.kind === 'note' ? 60 + item.bullets.length * 26 : 74);
+    var w = card ? card.offsetWidth : NODE_WIDTH;
+    var h = card ? card.offsetHeight : 60 + item.bullets.length * 26;
     return { x: item.x, y: item.y, w: w, h: h };
   }
 
@@ -521,6 +695,17 @@
       : 'M ' + sx + ' ' + sy + ' L ' + ex + ' ' + ey;
   }
 
+  function addPath(d, opts) {
+    var path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', opts.stroke);
+    path.setAttribute('stroke-width', '1.5');
+    if (opts.dash) path.setAttribute('stroke-dasharray', opts.dash);
+    path.setAttribute('marker-end', opts.marker);
+    el.linksG.appendChild(path);
+  }
+
   function renderLinks() {
     var board = activeBoard();
     el.linksG.textContent = '';
@@ -530,25 +715,36 @@
       var from = findItem(board, l.from);
       var to = findItem(board, l.to);
       if (!from || !to) return;
-
-      var path = document.createElementNS(SVG_NS, 'path');
-      path.setAttribute('d', pathFor(boxOf(from), boxOf(to)));
-      path.setAttribute('fill', 'none');
-      path.setAttribute('stroke', 'var(--geist-accents-3)');
-      path.setAttribute('stroke-width', '1.5');
-      path.setAttribute('marker-end', 'url(#tb-arrow)');
-      el.linksG.appendChild(path);
+      addPath(pathFor(boxOf(from), boxOf(to)), {
+        stroke: 'var(--geist-accents-3)',
+        marker: 'url(#tb-arrow)'
+      });
     });
+
+    // Rubber band while dragging from one node toward another.
+    if (linkDrag && linkDrag.moved) {
+      var src = findItem(board, linkDrag.fromId);
+      if (src) {
+        addPath(pathFor(boxOf(src), { x: linkDrag.x, y: linkDrag.y, w: 1, h: 1 }), {
+          stroke: 'var(--geist-success)',
+          dash: '4 4',
+          marker: 'url(#tb-arrow-live)'
+        });
+      }
+    }
   }
 
-  /* Cancel a pending link with Escape. */
+  /* Escape leaves link mode. */
   window.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && state.linkFrom) {
+    if (e.key !== 'Escape') return;
+    if (state.linkFrom) {
       state.linkFrom = null;
-      Object.keys(cardEls).forEach(function (cid) {
-        cardEls[cid].classList.remove('is-linking');
-      });
+      linkDrag = null;
+      syncLinkClasses();
       renderHint();
+      renderLinks();
+    } else if (state.linkMode) {
+      setLinkMode(false);
     }
   });
 
@@ -558,6 +754,7 @@
   /* Boot                                                               */
   /* ------------------------------------------------------------------ */
 
+  syncThemeButton();
   load();
   renderSidebar();
   renderBoard();

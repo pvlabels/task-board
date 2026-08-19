@@ -1,5 +1,9 @@
 /* ---------------------------------------------------------------
-   Geist UI tokens (light theme) — subset used by the task board.
+   Geist UI tokens — light theme (default) and dark theme.
+
+   Dark values keep each token's semantic role rather than its light
+   hex value: accents-1 stays "faintest surface", accents-3 stays
+   "muted text", border stays "hairline + dot grid".
    --------------------------------------------------------------- */
 :root {
   --geist-accents-1: #fafafa;
@@ -26,7 +30,47 @@
   --grid-size: 24px;
 }
 
-::selection { background-color: var(--geist-selection); color: var(--geist-foreground); }
+/* System preference — applies unless the user explicitly chose light. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --geist-accents-1: #111111;
+    --geist-accents-2: #333333;
+    --geist-accents-3: #888888;
+    --geist-accents-4: #999999;
+    --geist-accents-5: #888888;
+    --geist-accents-6: #999999;
+    --geist-accents-7: #eaeaea;
+    --geist-accents-8: #fafafa;
+
+    --geist-background: #000000;
+    --geist-foreground: #ffffff;
+    --geist-border: #333333;
+    --geist-error: #ff1a1a;
+
+    --geist-shadow-small: 0 5px 10px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* Explicit choice — wins over the system preference in both directions. */
+:root[data-theme="dark"] {
+  --geist-accents-1: #111111;
+  --geist-accents-2: #333333;
+  --geist-accents-3: #888888;
+  --geist-accents-4: #999999;
+  --geist-accents-5: #888888;
+  --geist-accents-6: #999999;
+  --geist-accents-7: #eaeaea;
+  --geist-accents-8: #fafafa;
+
+  --geist-background: #000000;
+  --geist-foreground: #ffffff;
+  --geist-border: #333333;
+  --geist-error: #ff1a1a;
+
+  --geist-shadow-small: 0 5px 10px rgba(0, 0, 0, 0.6);
+}
+
+::selection { background-color: var(--geist-selection); color: #000; }
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -37,11 +81,12 @@ body {
   background: var(--geist-background);
   -webkit-font-smoothing: antialiased;
 }
-input { font-family: inherit; }
-input::placeholder { color: var(--geist-accents-3); }
+input, textarea { font-family: inherit; }
+input::placeholder, textarea::placeholder { color: var(--geist-accents-3); }
 
 .muted-12 { font-size: 12px; color: var(--geist-accents-3); }
 .muted-13 { font-size: 13px; color: var(--geist-accents-3); }
+.spacer { flex: 1; }
 
 /* ---------------------------------------------------------------
    Shell
@@ -64,8 +109,20 @@ input::placeholder { color: var(--geist-accents-3); }
   padding: 0 20px;
   border-bottom: 1px solid var(--geist-border);
 }
-.logo { width: 22px; height: 22px; border-radius: 5px; display: block; }
+.logo { width: 22px; height: 22px; display: block; }
 .brand { font-size: 14px; font-weight: 500; }
+
+/* Logo swaps with the theme: the "-Light" file is drawn for light
+   backgrounds, the "-Dark" file for dark ones. */
+.logo-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .logo-light { display: none; }
+  :root:not([data-theme="light"]) .logo-dark { display: block; }
+}
+:root[data-theme="dark"] .logo-light { display: none; }
+:root[data-theme="dark"] .logo-dark { display: block; }
+:root[data-theme="light"] .logo-light { display: block; }
+:root[data-theme="light"] .logo-dark { display: none; }
 
 .body { display: flex; flex: 1; min-height: 0; }
 
@@ -95,13 +152,13 @@ input::placeholder { color: var(--geist-accents-3); }
   flex: 1;
   min-width: 0;
   height: 36px;
-  background: #fff;
+  background: var(--geist-background);
   border: 1px solid var(--geist-border);
   border-radius: var(--geist-radius);
   transition: border var(--geist-duration) ease;
   overflow: hidden;
 }
-.field:focus-within { border-color: #000; }
+.field:focus-within { border-color: var(--geist-foreground); }
 .field input {
   margin: 4px 10px;
   padding: 0;
@@ -126,7 +183,7 @@ input::placeholder { color: var(--geist-accents-3); }
   padding: 0 18px;
   border-radius: var(--geist-radius);
   border: 1px solid var(--geist-border);
-  background: #fff;
+  background: var(--geist-background);
   color: var(--geist-accents-5);
   font-family: inherit;
   font-size: 14px;
@@ -138,12 +195,62 @@ input::placeholder { color: var(--geist-accents-3); }
   outline: none;
   transition: background-color .2s ease, border .2s ease, color .2s ease;
 }
-.btn:hover { background: #fff; border-color: #000; color: #000; }
-.btn:focus-visible { border-color: #000; color: #000; }
+.btn:hover, .btn:focus-visible {
+  background: var(--geist-background);
+  border-color: var(--geist-foreground);
+  color: var(--geist-foreground);
+}
 .btn .i { width: 14px; height: 14px; }
 
-.btn-secondary { background: #000; border-color: #000; color: #fff; }
-.btn-secondary:hover, .btn-secondary:focus-visible { background: #fff; border-color: #000; color: #000; }
+.btn-secondary {
+  background: var(--geist-foreground);
+  border-color: var(--geist-foreground);
+  color: var(--geist-background);
+}
+.btn-secondary:hover, .btn-secondary:focus-visible {
+  background: var(--geist-background);
+  border-color: var(--geist-foreground);
+  color: var(--geist-foreground);
+}
+
+/* Active tool — filled, matching Geist's success button */
+.btn.is-active {
+  background: var(--geist-success);
+  border-color: var(--geist-success);
+  color: #fff;
+}
+.btn.is-active:hover, .btn.is-active:focus-visible {
+  background: var(--geist-background);
+  border-color: var(--geist-success);
+  color: var(--geist-success);
+}
+
+.btn-danger:hover, .btn-danger:focus-visible {
+  background: var(--geist-background);
+  border-color: var(--geist-error);
+  color: var(--geist-error);
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: var(--geist-radius);
+  border: 1px solid var(--geist-border);
+  background: var(--geist-background);
+  color: var(--geist-accents-5);
+  cursor: pointer;
+  outline: none;
+  transition: border .2s ease, color .2s ease;
+}
+.icon-btn:hover, .icon-btn:focus-visible {
+  border-color: var(--geist-foreground);
+  color: var(--geist-foreground);
+}
+.icon-btn svg { width: 15px; height: 15px; }
 
 .board-list { flex: 1; overflow-y: auto; padding: 8px; }
 
@@ -176,13 +283,14 @@ input::placeholder { color: var(--geist-accents-3); }
   display: flex;
   align-items: center;
   color: var(--geist-accents-3);
-  opacity: .6;
+  opacity: .7;
   border: none;
   background: none;
   padding: 0;
   cursor: pointer;
 }
-.board-row .remove:hover { color: var(--geist-error); opacity: 1; }
+.board-row:hover .remove, .board-row.is-active .remove { opacity: 1; }
+.board-row .remove:hover, .board-row .remove:focus-visible { color: var(--geist-error); opacity: 1; }
 
 .sidebar-empty {
   margin: 12px 8px;
@@ -208,7 +316,6 @@ input::placeholder { color: var(--geist-accents-3); }
   border-bottom: 1px solid var(--geist-border);
 }
 .board-name { font-size: 13px; font-weight: 500; }
-.spacer { flex: 1; }
 
 .canvas {
   position: relative;
@@ -240,7 +347,7 @@ input::placeholder { color: var(--geist-accents-3); }
 .empty-sub { margin: 0; font-size: 13px; color: var(--geist-accents-3); }
 
 /* ---------------------------------------------------------------
-   Cards
+   Nodes
    --------------------------------------------------------------- */
 .card {
   position: absolute;
@@ -280,34 +387,45 @@ input::placeholder { color: var(--geist-accents-3); }
   cursor: pointer;
 }
 .card-act svg { width: 13px; height: 13px; }
-.card-act.link:hover { color: var(--geist-success); }
-.card.is-linking .card-act.link { color: var(--geist-success); }
-.card-act.del:hover { color: var(--geist-error); }
+.card-act.del:hover, .card-act.del:focus-visible { color: var(--geist-error); }
 
 .card-body { padding: 8px 10px 10px; }
-.card-title {
+
+/* Titles and bullets are auto-growing textareas so long text wraps
+   onto the next line instead of scrolling off the side. */
+.card-title, .bullet textarea {
+  display: block;
   width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.card-title {
   margin: 0 0 2px;
   padding: 2px 0;
   font-size: 13px;
   font-weight: 500;
+  line-height: 1.5;
   color: var(--geist-foreground);
-  background: transparent;
-  border: none;
-  outline: none;
 }
-.bullet { display: flex; align-items: baseline; gap: 8px; }
-.bullet .dot { color: var(--geist-accents-3); font-size: 13px; }
-.bullet input {
+.bullet { display: flex; align-items: flex-start; gap: 8px; }
+.bullet .dot {
+  color: var(--geist-accents-3);
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 2px 0;
+}
+.bullet textarea {
   flex: 1;
   min-width: 0;
   padding: 2px 0;
   font-size: 13px;
   line-height: 1.6;
   color: var(--geist-accents-6);
-  background: transparent;
-  border: none;
-  outline: none;
 }
 .add-bullet {
   display: inline-block;
@@ -320,20 +438,31 @@ input::placeholder { color: var(--geist-accents-3); }
   color: var(--geist-accents-3);
   cursor: pointer;
 }
-.add-bullet:hover { color: var(--geist-success); }
+.add-bullet:hover, .add-bullet:focus-visible { color: var(--geist-success); }
+
+/* ---------------------------------------------------------------
+   Link mode — the whole node becomes the grab target
+   --------------------------------------------------------------- */
+.canvas.is-linking .card { cursor: crosshair; }
+.canvas.is-linking .card-head { cursor: crosshair; }
+.canvas.is-linking .card textarea,
+.canvas.is-linking .card .add-bullet,
+.canvas.is-linking .card .card-act { pointer-events: none; }
+.canvas.is-linking .card:hover { border-color: var(--geist-success-light); }
 
 /* Inline feather-style icons */
-svg.i, .card-act svg, .board-row .remove svg {
+svg.i, .card-act svg, .board-row .remove svg, .icon-btn svg {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.5;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* ---------------------------------------------------------------
    Narrow screens
    --------------------------------------------------------------- */
-@media (max-width: 720px) {
+@media (max-width: 860px) {
   .body { flex-direction: column; }
   .sidebar {
     width: 100%;
@@ -343,4 +472,5 @@ svg.i, .card-act svg, .board-row .remove svg {
     border-bottom: 1px solid var(--geist-border);
   }
   .toolbar { overflow-x: auto; }
+  .board-name { flex: 0 0 auto; }
 }
