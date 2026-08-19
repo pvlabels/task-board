@@ -3,5 +3,6 @@ extracted/
 .claude/
 .DS_Store
 Thumbs.db
-DDT-Light.svg
-DDT-Dark.svg
+# source logos live at the project root; the site uses assets/
+/DDT-Light.svg
+/DDT-Dark.svg
