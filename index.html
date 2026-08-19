@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="assets/styles.css?v=4">
+<link rel="stylesheet" href="assets/styles.css?v=5">
 </head>
 <body>
 
@@ -33,18 +33,16 @@
     <span class="brand">Task Board</span>
     <span class="muted-13" id="boardCount"></span>
     <span class="spacer"></span>
+    <button class="btn btn-secondary" id="addProject" type="button">
+      <svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      <span>Add project</span>
+    </button>
     <button class="icon-btn" id="themeToggle" type="button" aria-label="Switch theme" title="Switch theme"></button>
   </header>
 
   <div class="body">
 
     <aside class="sidebar">
-      <form class="new-board" id="newBoardForm" autocomplete="off">
-        <label class="field">
-          <input id="draft" type="text" placeholder="Project name" aria-label="Project name">
-        </label>
-        <button type="submit" class="btn btn-secondary">Add</button>
-      </form>
       <div class="board-list" id="boardList"></div>
     </aside>
 
@@ -113,6 +111,40 @@
   </button>
 </div>
 
-<script src="assets/app.js?v=4"></script>
+<div class="overlay" id="newProject" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="newProjectTitle">
+    <div class="dialog-head">
+      <div class="dialog-title" id="newProjectTitle">New project</div>
+      <div class="dialog-sub">Name it and set how urgent it is.</div>
+    </div>
+
+    <form class="dialog-body" id="newProjectForm" autocomplete="off">
+      <label class="modal-label" for="projectName">Project name</label>
+      <label class="field">
+        <input id="projectName" type="text" placeholder="Checkout flow">
+      </label>
+
+      <span class="modal-label" id="projectPriorityLabel">Priority</span>
+      <div class="seg" role="radiogroup" aria-labelledby="projectPriorityLabel" id="projectPriority">
+        <button type="button" class="seg-item" data-priority="1" role="radio" aria-checked="false">
+          <span class="prio prio-1">1</span><span>High</span>
+        </button>
+        <button type="button" class="seg-item" data-priority="2" role="radio" aria-checked="true">
+          <span class="prio prio-2">2</span><span>Medium</span>
+        </button>
+        <button type="button" class="seg-item" data-priority="3" role="radio" aria-checked="false">
+          <span class="prio prio-3">3</span><span>Low</span>
+        </button>
+      </div>
+    </form>
+
+    <div class="dialog-actions">
+      <button class="dialog-action" id="projectCancel" type="button">Cancel</button>
+      <button class="dialog-action primary" id="projectCreate" type="submit" form="newProjectForm" disabled>Add project</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/app.js?v=5"></script>
 </body>
 </html>

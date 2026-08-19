@@ -8,12 +8,12 @@ Built from the `Task Board.dc.html` design file, using the Geist UI design token
 
 ## Use
 
-- **Add a board** — type a project name in the sidebar and press *Add*.
+- **Add a project** — *Add project* at the top right opens a dialog for the name and priority.
 - **Delete a board** — the ⋮ button at the left of any sidebar row opens its menu. Boards with
   nodes ask for confirmation first.
-- **Set a priority** — the same ⋮ menu marks a project **1** (high), **2** (medium) or **3** (low).
-  New projects start at 2. The badge shows on the row; priority labels a project, it does not
-  reorder the queue.
+- **Set a priority** — chosen in the new-project dialog and changeable later from the ⋮ menu:
+  **1** (high), **2** (medium) or **3** (low), defaulting to 2. The badge shows on the row;
+  priority labels a project, it does not reorder the queue.
 - **Reorder the queue** — drag a row by its grip handle. The row lifts and the rest part around it,
   same press-and-hold interaction as the Router Department Tracking job queue.
 - **Add a node** — *Node* drops one on the grid. Each node has a heading and bullets; long text
@@ -23,7 +23,7 @@ Built from the `Task Board.dc.html` design file, using the Geist UI design token
   or click one node and then the next. Repeating an existing connection removes it.
   <kbd>Esc</kbd> leaves the tool.
 - **Mark a node complete** — the circle at the top-left of a node. Completed nodes strike through
-  their heading and dim; the sidebar count then reads *done/total*.
+  their heading and dim.
 - **Bullets** — <kbd>Enter</kbd> adds the next bullet, <kbd>Shift</kbd>+<kbd>Enter</kbd> breaks a
   line inside one, <kbd>Backspace</kbd> on an empty one removes it.
 - **Theme** — the toggle in the header switches light/dark and remembers your choice. Until you

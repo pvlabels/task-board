@@ -120,8 +120,13 @@
   var el = {
     boardCount: document.getElementById('boardCount'),
     themeToggle: document.getElementById('themeToggle'),
-    form: document.getElementById('newBoardForm'),
-    draft: document.getElementById('draft'),
+    addProject: document.getElementById('addProject'),
+    overlay: document.getElementById('newProject'),
+    dialogForm: document.getElementById('newProjectForm'),
+    projectName: document.getElementById('projectName'),
+    projectPriority: document.getElementById('projectPriority'),
+    projectCancel: document.getElementById('projectCancel'),
+    projectCreate: document.getElementById('projectCreate'),
     boardList: document.getElementById('boardList'),
     boardView: document.getElementById('boardView'),
     emptyState: document.getElementById('emptyState'),
@@ -205,9 +210,6 @@
       prio.textContent = String(b.priority);
       prio.title = PRIORITY_LABEL[b.priority] + ' priority';
 
-      var count = document.createElement('span');
-      count.className = 'count';
-      count.textContent = countLabel(b);
 
       var menuBtn = document.createElement('button');
       menuBtn.className = 'menu-btn';
@@ -223,7 +225,6 @@
       row.appendChild(menuBtn);
       row.appendChild(name);
       row.appendChild(prio);
-      row.appendChild(count);
 
       row.addEventListener('click', function () {
         if (swallowClick()) return;
@@ -250,18 +251,6 @@
       p.textContent = 'Name a project to start a board.';
       el.boardList.appendChild(p);
     }
-  }
-
-  function countLabel(board) {
-    var done = board.items.filter(function (i) { return i.done; }).length;
-    return done ? done + '/' + board.items.length : String(board.items.length);
-  }
-
-  function refreshCounts() {
-    var board = activeBoard();
-    if (!board) return;
-    var row = el.boardList.querySelector('.board-row[data-id="' + board.id + '"] .count');
-    if (row) row.textContent = countLabel(board);
   }
 
   function selectBoard(id) {
@@ -487,18 +476,79 @@
     save();
   }
 
-  el.form.addEventListener('submit', function (e) {
+  /* ------------------------------------------------------------------ */
+  /* New-project dialog                                                 */
+  /* ------------------------------------------------------------------ */
+
+  var segItems = [].slice.call(el.projectPriority.querySelectorAll('.seg-item'));
+  var draftPriority = 2;
+  var dialogOpener = null;
+
+  function setDraftPriority(p) {
+    draftPriority = clampPriority(p);
+    segItems.forEach(function (item) {
+      item.setAttribute('aria-checked', String(Number(item.dataset.priority) === draftPriority));
+    });
+  }
+
+  function syncCreateEnabled() {
+    el.projectCreate.disabled = !el.projectName.value.trim();
+  }
+
+  function openProjectDialog() {
+    dialogOpener = (document.activeElement && document.activeElement !== document.body)
+      ? document.activeElement
+      : el.addProject;
+    el.projectName.value = '';
+    setDraftPriority(2);
+    syncCreateEnabled();
+    el.overlay.hidden = false;
+    el.projectName.focus();
+  }
+
+  function closeProjectDialog() {
+    if (el.overlay.hidden) return;
+    if (el.overlay.contains(document.activeElement)) document.activeElement.blur();
+    el.overlay.hidden = true;
+    var back = (dialogOpener && document.contains(dialogOpener)) ? dialogOpener : el.addProject;
+    if (back && back.focus) back.focus();
+    dialogOpener = null;
+  }
+
+  segItems.forEach(function (item) {
+    item.addEventListener('click', function () { setDraftPriority(item.dataset.priority); });
+  });
+
+  el.addProject.addEventListener('click', openProjectDialog);
+  el.projectCancel.addEventListener('click', closeProjectDialog);
+  el.projectName.addEventListener('input', syncCreateEnabled);
+
+  el.overlay.addEventListener('pointerdown', function (e) {
+    if (e.target === el.overlay) closeProjectDialog();
+  });
+
+  el.dialogForm.addEventListener('submit', function (e) {
     e.preventDefault();
-    var name = el.draft.value.trim();
+    var name = el.projectName.value.trim();
     if (!name) return;
-    var b = { id: nid(), name: name, priority: 2, items: [], links: [] };
+    var b = { id: nid(), name: name, priority: draftPriority, items: [], links: [] };
     state.boards.push(b);
     state.activeId = b.id;
     state.linkFrom = null;
-    el.draft.value = '';
     save();
+    closeProjectDialog();
     renderSidebar();
     renderBoard();
+  });
+
+  /* Keep tabbing inside the dialog while it is open. */
+  el.overlay.addEventListener('keydown', function (e) {
+    if (e.key !== 'Tab') return;
+    var focusable = el.overlay.querySelectorAll('input, button:not(:disabled)');
+    if (!focusable.length) return;
+    var first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
 
   /* ------------------------------------------------------------------ */
@@ -561,7 +611,6 @@
     save();
 
     var card = mountCard(buildCard(item), item.id);
-    refreshCounts();
     renderLinks();
 
     var title = card.querySelector('.card-title');
@@ -700,7 +749,6 @@
     check.setAttribute('aria-pressed', String(item.done));
     var kind = card.querySelector('.card-kind');
     if (kind) kind.textContent = item.done ? 'Node · Done' : 'Node';
-    refreshCounts();
   }
 
   function buildBullet(item, index, text) {
@@ -778,7 +826,6 @@
     if (card && card.parentNode) card.parentNode.removeChild(card);
     delete cardEls[id];
 
-    refreshCounts();
     renderHint();
     renderLinks();
   }
@@ -1006,7 +1053,9 @@
   /* Escape leaves link mode. */
   window.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    if (menuFor) {
+    if (!el.overlay.hidden) {
+      closeProjectDialog();
+    } else if (menuFor) {
       var btn = menuBtnEl;
       closeMenu();
       if (btn) btn.focus();
