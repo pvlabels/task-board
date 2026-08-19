@@ -1,0 +1,5 @@
+extracted/
+*.zip
+.claude/
+.DS_Store
+Thumbs.db
