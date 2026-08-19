@@ -16,6 +16,9 @@
   var NODE_WIDTH = 244;
 
   var ICON_DOTS = '<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="12" cy="19" r="1.6"></circle></svg>';
+  var ICON_GRIP = '<svg viewBox="0 0 24 24"><circle cx="9" cy="5" r="1.6"/><circle cx="15" cy="5" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="19" r="1.6"/><circle cx="15" cy="19" r="1.6"/></svg>';
+  var ICON_UNCHECKED = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle></svg>';
+  var ICON_CHECKED = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.3l2.7 2.7L16 9.7"></path></svg>';
   var ICON_CLOSE = '<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"></path></svg>';
   var ICON_SUN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>';
   var ICON_MOON = '<svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>';
@@ -25,6 +28,8 @@
   /* ------------------------------------------------------------------ */
   /* State                                                              */
   /* ------------------------------------------------------------------ */
+
+  var PRIORITY_LABEL = { 1: 'High', 2: 'Medium', 3: 'Low' };
 
   var state = {
     boards: [],
@@ -44,12 +49,18 @@
     try { localStorage.setItem(KEY, JSON.stringify(state.boards)); } catch (e) {}
   }
 
+  function clampPriority(v) {
+    var n = parseInt(v, 10);
+    return (n === 1 || n === 2 || n === 3) ? n : 2;
+  }
+
   /* Older boards stored "note" and "box" elements; both are now nodes. */
   function migrate(boards) {
     return boards.map(function (b) {
       return {
         id: b.id || nid(),
-        name: b.name || 'Untitled product',
+        name: b.name || 'Untitled project',
+        priority: clampPriority(b.priority),
         items: (b.items || []).map(function (it) {
           return {
             id: it.id || nid(),
@@ -57,6 +68,7 @@
             x: it.x || 0,
             y: it.y || 0,
             title: it.title || '',
+            done: !!it.done,
             bullets: Array.isArray(it.bullets) ? it.bullets : []
           };
         }),
@@ -69,11 +81,18 @@
     var boards = [];
     try { boards = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { boards = []; }
     if (!Array.isArray(boards) || !boards.length) {
-      boards = [{ id: nid(), name: 'Untitled product', items: [], links: [] }];
+      boards = [{ id: nid(), name: 'Untitled project', items: [], links: [] }];
     }
     state.boards = migrate(boards);
     state.activeId = state.boards[0].id;
     save(); // normalise older stored shapes in place
+  }
+
+  function boardById(id) {
+    for (var i = 0; i < state.boards.length; i++) {
+      if (state.boards[i].id === id) return state.boards[i];
+    }
+    return null;
   }
 
   function activeBoard() {
@@ -169,14 +188,26 @@
       row.setAttribute('role', 'button');
       row.tabIndex = 0;
 
+      var grip = document.createElement('button');
+      grip.className = 'grip';
+      grip.type = 'button';
+      grip.title = 'Drag to reorder the queue';
+      grip.setAttribute('aria-label', 'Reorder ' + b.name);
+      grip.innerHTML = ICON_GRIP;
+
       var name = document.createElement('span');
       name.className = 'name';
       name.textContent = b.name;
       name.title = b.name;
 
+      var prio = document.createElement('span');
+      prio.className = 'prio prio-' + b.priority;
+      prio.textContent = String(b.priority);
+      prio.title = PRIORITY_LABEL[b.priority] + ' priority';
+
       var count = document.createElement('span');
       count.className = 'count';
-      count.textContent = String(b.items.length);
+      count.textContent = countLabel(b);
 
       var menuBtn = document.createElement('button');
       menuBtn.className = 'menu-btn';
@@ -187,11 +218,17 @@
       menuBtn.setAttribute('aria-expanded', 'false');
       menuBtn.innerHTML = ICON_DOTS;
 
+      row.dataset.id = b.id;
+      row.appendChild(grip);
       row.appendChild(menuBtn);
       row.appendChild(name);
+      row.appendChild(prio);
       row.appendChild(count);
 
-      row.addEventListener('click', function () { selectBoard(b.id); });
+      row.addEventListener('click', function () {
+        if (swallowClick()) return;
+        selectBoard(b.id);
+      });
       row.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectBoard(b.id); }
       });
@@ -201,6 +238,8 @@
         else openMenu(menuBtn, b.id);
       });
       menuBtn.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+      grip.addEventListener('pointerdown', function (e) { rowPointerDown(e, row); });
+      grip.addEventListener('click', function (e) { e.stopPropagation(); });
 
       el.boardList.appendChild(row);
     });
@@ -208,16 +247,21 @@
     if (!state.boards.length) {
       var p = document.createElement('p');
       p.className = 'sidebar-empty';
-      p.textContent = 'Name a product to start a board.';
+      p.textContent = 'Name a project to start a board.';
       el.boardList.appendChild(p);
     }
   }
 
+  function countLabel(board) {
+    var done = board.items.filter(function (i) { return i.done; }).length;
+    return done ? done + '/' + board.items.length : String(board.items.length);
+  }
+
   function refreshCounts() {
-    var rows = el.boardList.querySelectorAll('.board-row .count');
-    state.boards.forEach(function (b, i) {
-      if (rows[i]) rows[i].textContent = String(b.items.length);
-    });
+    var board = activeBoard();
+    if (!board) return;
+    var row = el.boardList.querySelector('.board-row[data-id="' + board.id + '"] .count');
+    if (row) row.textContent = countLabel(board);
   }
 
   function selectBoard(id) {
@@ -230,10 +274,7 @@
   }
 
   function deleteBoard(id) {
-    var board = null;
-    for (var i = 0; i < state.boards.length; i++) {
-      if (state.boards[i].id === id) board = state.boards[i];
-    }
+    var board = boardById(id);
     if (!board) return;
 
     var n = board.items.length;
@@ -256,11 +297,18 @@
 
   var menuFor = null;   // board id the open menu belongs to
   var menuBtnEl = null;
+  var prioItems = [].slice.call(el.menu.querySelectorAll('.prio-item'));
 
   function openMenu(btn, boardId) {
     menuFor = boardId;
     menuBtnEl = btn;
     btn.setAttribute('aria-expanded', 'true');
+
+    var board = boardById(boardId);
+    prioItems.forEach(function (item) {
+      var on = board && String(board.priority) === item.dataset.priority;
+      item.setAttribute('aria-checked', String(!!on));
+    });
 
     el.menu.hidden = false;
     el.menu.style.left = '0px';
@@ -284,6 +332,17 @@
     el.menu.hidden = true;
   }
 
+  prioItems.forEach(function (item) {
+    item.addEventListener('click', function () {
+      var board = boardById(menuFor);
+      closeMenu();
+      if (!board) return;
+      board.priority = clampPriority(item.dataset.priority);
+      save();
+      renderSidebar();
+    });
+  });
+
   el.menuDelete.addEventListener('click', function () {
     var id = menuFor;
     closeMenu();
@@ -296,11 +355,143 @@
   el.boardList.addEventListener('scroll', function () { if (menuFor) closeMenu(); });
   window.addEventListener('resize', function () { if (menuFor) closeMenu(); });
 
+  /* ------------------------------------------------------------------ */
+  /* Queue reorder — press-and-hold drag, ported from the Router          */
+  /* Department Tracking board's job queue.                               */
+  /* ------------------------------------------------------------------ */
+
+  var MOVE_START = 3;    // px of movement before the row lifts
+  var pressState = null;
+  var dragEndedAt = 0;
+
+  /* A click fires right after a drag ends; the row must not also select. */
+  function swallowClick() {
+    return dragEndedAt && (Date.now() - dragEndedAt) < 400;
+  }
+
+  function rowPointerDown(e, row) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    endPress();
+    e.preventDefault();
+    e.stopPropagation();
+    closeMenu();
+    pressState = {
+      row: row,
+      container: el.boardList,
+      startY: e.clientY, startX: e.clientX,
+      lastY: e.clientY, lastX: e.clientX,
+      pointerId: e.pointerId,
+      dragging: false
+    };
+    window.addEventListener('pointermove', rowPointerMove);
+    window.addEventListener('pointerup', rowPointerUp);
+    window.addEventListener('pointercancel', rowPointerUp);
+  }
+
+  function rowPointerMove(e) {
+    var st = pressState;
+    if (!st) return;
+    st.lastY = e.clientY;
+    st.lastX = e.clientX;
+    if (!st.dragging) {
+      var dist = Math.abs(e.clientY - st.startY) + Math.abs(e.clientX - st.startX);
+      if (dist <= MOVE_START) return;
+      beginRowDrag();
+    }
+    e.preventDefault();
+    rowDragMove(e.clientY);
+  }
+
+  function beginRowDrag() {
+    var st = pressState;
+    if (!st || st.dragging) return;
+    st.dragging = true;
+    st.baseY = st.lastY;
+    st.baseX = st.lastX;
+    st.row.classList.add('lifted');
+    st.row.style.touchAction = 'none';
+    try { st.row.setPointerCapture(st.pointerId); } catch (err) {}
+    document.body.style.userSelect = 'none';
+    rowDragMove(st.lastY);
+  }
+
+  function rowDragMove(y) {
+    var st = pressState, row = st.row, container = st.container;
+    var kids = [].slice.call(container.children).filter(function (c) {
+      return c !== row && c.classList && c.classList.contains('board-row');
+    });
+
+    var after = null;
+    for (var i = 0; i < kids.length; i++) {
+      var box = kids[i].getBoundingClientRect();
+      if (y < box.top + box.height / 2) { after = kids[i]; break; }
+    }
+
+    var before = row.offsetTop;
+    if (after == null) {
+      if (container.lastElementChild !== row) container.appendChild(row);
+    } else if (row.nextElementSibling !== after) {
+      container.insertBefore(row, after);
+    }
+    st.baseY += row.offsetTop - before;   // keep the lift under the pointer after a DOM move
+
+    var dx = Math.max(-18, Math.min(18, st.lastX - st.baseX));
+    row.style.transform = 'translate(' + dx + 'px,' + (y - st.baseY) + 'px) scale(1.02)';
+  }
+
+  function rowPointerUp() {
+    var st = pressState;
+    if (!st) return;
+    window.removeEventListener('pointermove', rowPointerMove);
+    window.removeEventListener('pointerup', rowPointerUp);
+    window.removeEventListener('pointercancel', rowPointerUp);
+    document.body.style.userSelect = '';
+
+    var wasDragging = st.dragging;
+    var container = st.container, row = st.row;
+    pressState = null;
+
+    if (!wasDragging) return;
+
+    row.classList.remove('lifted');
+    row.style.transform = '';
+    row.style.touchAction = '';
+    dragEndedAt = Date.now();
+
+    var ids = [].slice.call(container.querySelectorAll('.board-row')).map(function (r) {
+      return r.dataset.id;
+    });
+    commitOrder(ids);
+  }
+
+  function endPress() {
+    if (!pressState) return;
+    window.removeEventListener('pointermove', rowPointerMove);
+    window.removeEventListener('pointerup', rowPointerUp);
+    window.removeEventListener('pointercancel', rowPointerUp);
+    pressState = null;
+  }
+
+  /* The DOM is already in the new order, so reorder state to match and
+     leave the list alone — re-rendering here would only cause a flicker. */
+  function commitOrder(ids) {
+    var next = [];
+    ids.forEach(function (id) {
+      var b = boardById(id);
+      if (b) next.push(b);
+    });
+    state.boards.forEach(function (b) {
+      if (next.indexOf(b) === -1) next.push(b);
+    });
+    state.boards = next;
+    save();
+  }
+
   el.form.addEventListener('submit', function (e) {
     e.preventDefault();
     var name = el.draft.value.trim();
     if (!name) return;
-    var b = { id: nid(), name: name, items: [], links: [] };
+    var b = { id: nid(), name: name, priority: 2, items: [], links: [] };
     state.boards.push(b);
     state.activeId = b.id;
     state.linkFrom = null;
@@ -321,7 +512,7 @@
     el.emptyState.hidden = !!board;
     if (!board) return;
 
-    el.activeName.textContent = board.name || 'Untitled product';
+    el.activeName.textContent = board.name || 'Untitled project';
     renderHint();
 
     // Clear nodes, keeping the connector layer in place.
@@ -363,6 +554,7 @@
       x: g * 2 + (n % 4) * g * 11,
       y: g * 2 + Math.floor(n / 4) * g * 7,
       title: '',
+      done: false,
       bullets: ['']
     };
     board.items.push(item);
@@ -397,7 +589,9 @@
 
   function buildCard(item) {
     var card = document.createElement('div');
-    card.className = 'card' + (state.linkFrom === item.id ? ' is-linking' : '');
+    card.className = 'card'
+      + (state.linkFrom === item.id ? ' is-linking' : '')
+      + (item.done ? ' is-done' : '');
     card.dataset.id = item.id;
     card.style.left = item.x + 'px';
     card.style.top = item.y + 'px';
@@ -407,9 +601,21 @@
     var head = document.createElement('div');
     head.className = 'card-head';
 
+    var check = document.createElement('button');
+    check.className = 'card-check';
+    check.type = 'button';
+    check.innerHTML = item.done ? ICON_CHECKED : ICON_UNCHECKED;
+    check.title = item.done ? 'Mark as not complete' : 'Mark complete';
+    check.setAttribute('aria-pressed', String(!!item.done));
+    check.setAttribute('aria-label', 'Mark node complete');
+    check.addEventListener('click', function (e) {
+      e.stopPropagation();
+      toggleDone(item, card, check);
+    });
+
     var kind = document.createElement('span');
     kind.className = 'card-kind';
-    kind.textContent = 'Node';
+    kind.textContent = item.done ? 'Node · Done' : 'Node';
 
     var del = document.createElement('button');
     del.className = 'card-act del';
@@ -422,6 +628,7 @@
       deleteItem(item.id);
     });
 
+    head.appendChild(check);
     head.appendChild(kind);
     head.appendChild(del);
 
@@ -482,6 +689,18 @@
     });
 
     return card;
+  }
+
+  function toggleDone(item, card, check) {
+    item.done = !item.done;
+    save();
+    card.classList.toggle('is-done', item.done);
+    check.innerHTML = item.done ? ICON_CHECKED : ICON_UNCHECKED;
+    check.title = item.done ? 'Mark as not complete' : 'Mark complete';
+    check.setAttribute('aria-pressed', String(item.done));
+    var kind = card.querySelector('.card-kind');
+    if (kind) kind.textContent = item.done ? 'Node · Done' : 'Node';
+    refreshCounts();
   }
 
   function buildBullet(item, index, text) {

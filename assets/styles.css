@@ -22,6 +22,8 @@
   --geist-success: #0070f3;
   --geist-success-light: #3291ff;
   --geist-error: #e00000;
+  --geist-warning: #f5a623;
+  --geist-done: #0f9d58;
 
   /* Logo — same tokens the Router Department Tracking board uses, so the
      one inline mark works on both themes. */
@@ -52,6 +54,8 @@
     --geist-foreground: #ffffff;
     --geist-border: #333333;
     --geist-error: #ff1a1a;
+    --geist-warning: #f7b955;
+    --geist-done: #4ac66a;
 
     --logo-fg: #ffffff;
     --logo-track: #242424;
@@ -76,6 +80,8 @@
   --geist-foreground: #ffffff;
   --geist-border: #333333;
   --geist-error: #ff1a1a;
+  --geist-warning: #f7b955;
+  --geist-done: #4ac66a;
 
   --logo-fg: #ffffff;
   --logo-track: #242424;
@@ -259,8 +265,8 @@ input::placeholder, textarea::placeholder { color: var(--geist-accents-3); }
 .board-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
+  gap: 6px;
+  padding: 7px 8px;
   font-size: 13px;
   border-radius: var(--geist-radius);
   cursor: pointer;
@@ -273,6 +279,52 @@ input::placeholder, textarea::placeholder { color: var(--geist-accents-3); }
   background: var(--geist-accents-1);
   font-weight: 500;
 }
+/* Lifted while being dragged up or down the queue */
+.board-row.lifted {
+  position: relative;
+  z-index: 30;
+  border-color: var(--geist-accents-3);
+  background: var(--geist-accents-1);
+  box-shadow: var(--geist-shadow-menu);
+}
+
+.board-row .grip {
+  display: flex;
+  flex: none;
+  padding: 2px 1px;
+  border: none;
+  background: none;
+  color: var(--geist-accents-3);
+  opacity: .55;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: opacity .2s ease, color .2s ease;
+}
+.board-row .grip:active { cursor: grabbing; }
+.board-row:hover .grip, .board-row.is-active .grip { opacity: 1; }
+.board-row .grip:hover, .board-row .grip:focus-visible { color: var(--geist-foreground); opacity: 1; }
+.board-row .grip svg { width: 14px; height: 14px; display: block; fill: currentColor; stroke: none; }
+
+/* Priority badge — 1 high, 3 low */
+.prio {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 17px;
+  height: 17px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: #fff;
+}
+.prio-1 { background: var(--geist-error); }
+.prio-2 { background: var(--geist-warning); color: #111; }
+.prio-3 { background: var(--geist-accents-3); }
+
 .board-row .name {
   flex: 1;
   min-width: 0;
@@ -352,6 +404,23 @@ input::placeholder, textarea::placeholder { color: var(--geist-accents-3); }
   outline: none;
 }
 .menu-item.danger:hover, .menu-item.danger:focus-visible { color: var(--geist-error); }
+
+.menu-label {
+  padding: 6px 10px 4px;
+  font-size: 11px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--geist-accents-3);
+}
+.menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--geist-border);
+}
+.menu-item .tick { visibility: hidden; }
+.menu-item[aria-checked="true"] .tick { visibility: visible; color: var(--geist-foreground); }
+.menu-item[aria-checked="true"] { color: var(--geist-foreground); }
+.prio-item .prio { margin-right: 2px; }
 
 .sidebar-empty {
   margin: 12px 8px;
@@ -448,6 +517,31 @@ input::placeholder, textarea::placeholder { color: var(--geist-accents-3); }
   cursor: pointer;
 }
 .card-act svg { width: 13px; height: 13px; }
+
+.card-check {
+  display: flex;
+  align-items: center;
+  flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--geist-accents-3);
+  cursor: pointer;
+  transition: color .2s ease;
+}
+.card-check svg { width: 15px; height: 15px; }
+.card-check:hover, .card-check:focus-visible { color: var(--geist-done); }
+.card.is-done .card-check { color: var(--geist-done); }
+
+.card.is-done { border-color: var(--geist-accents-2); }
+.card.is-done .card-kind { color: var(--geist-done); }
+.card.is-done .card-title {
+  text-decoration: line-through;
+  text-decoration-color: var(--geist-accents-3);
+  color: var(--geist-accents-4);
+}
+.card.is-done .bullet textarea { color: var(--geist-accents-4); }
+.card.is-done .bullet .dot { color: var(--geist-accents-4); }
 .card-act.del:hover, .card-act.del:focus-visible { color: var(--geist-error); }
 
 .card-body { padding: 8px 10px 10px; }
@@ -508,11 +602,12 @@ input::placeholder, textarea::placeholder { color: var(--geist-accents-3); }
 .canvas.is-linking .card-head { cursor: crosshair; }
 .canvas.is-linking .card textarea,
 .canvas.is-linking .card .add-bullet,
-.canvas.is-linking .card .card-act { pointer-events: none; }
+.canvas.is-linking .card .card-act,
+.canvas.is-linking .card .card-check { pointer-events: none; }
 .canvas.is-linking .card:hover { border-color: var(--geist-success-light); }
 
 /* Inline feather-style icons */
-svg.i, .card-act svg, .icon-btn svg {
+svg.i, .card-act svg, .card-check svg, .icon-btn svg {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.5;
