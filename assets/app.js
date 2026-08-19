@@ -15,6 +15,7 @@
 
   var NODE_WIDTH = 244;
 
+  var ICON_DOTS = '<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="12" cy="19" r="1.6"></circle></svg>';
   var ICON_CLOSE = '<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"></path></svg>';
   var ICON_SUN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>';
   var ICON_MOON = '<svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>';
@@ -109,7 +110,8 @@
     hint: document.getElementById('hint'),
     addNode: document.getElementById('addNode'),
     linkNodes: document.getElementById('linkNodes'),
-    deleteBoard: document.getElementById('deleteBoard'),
+    menu: document.getElementById('boardMenu'),
+    menuDelete: document.getElementById('menuDelete'),
     canvas: document.getElementById('canvas'),
     linksG: document.getElementById('linksG')
   };
@@ -154,6 +156,8 @@
   /* ------------------------------------------------------------------ */
 
   function renderSidebar() {
+    closeMenu();
+
     var n = state.boards.length;
     el.boardCount.textContent = n ? n + (n === 1 ? ' board' : ' boards') : '';
 
@@ -174,25 +178,29 @@
       count.className = 'count';
       count.textContent = String(b.items.length);
 
-      var remove = document.createElement('button');
-      remove.className = 'remove';
-      remove.type = 'button';
-      remove.title = 'Delete board';
-      remove.setAttribute('aria-label', 'Delete board ' + b.name);
-      remove.innerHTML = ICON_CLOSE;
+      var menuBtn = document.createElement('button');
+      menuBtn.className = 'menu-btn';
+      menuBtn.type = 'button';
+      menuBtn.title = 'Board options';
+      menuBtn.setAttribute('aria-label', 'Options for ' + b.name);
+      menuBtn.setAttribute('aria-haspopup', 'menu');
+      menuBtn.setAttribute('aria-expanded', 'false');
+      menuBtn.innerHTML = ICON_DOTS;
 
+      row.appendChild(menuBtn);
       row.appendChild(name);
       row.appendChild(count);
-      row.appendChild(remove);
 
       row.addEventListener('click', function () { selectBoard(b.id); });
       row.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectBoard(b.id); }
       });
-      remove.addEventListener('click', function (e) {
+      menuBtn.addEventListener('click', function (e) {
         e.stopPropagation();
-        deleteBoard(b.id);
+        if (menuFor === b.id) closeMenu();
+        else openMenu(menuBtn, b.id);
       });
+      menuBtn.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
 
       el.boardList.appendChild(row);
     });
@@ -242,9 +250,51 @@
     renderBoard();
   }
 
-  el.deleteBoard.addEventListener('click', function () {
-    if (state.activeId) deleteBoard(state.activeId);
+  /* ------------------------------------------------------------------ */
+  /* Board menu                                                         */
+  /* ------------------------------------------------------------------ */
+
+  var menuFor = null;   // board id the open menu belongs to
+  var menuBtnEl = null;
+
+  function openMenu(btn, boardId) {
+    menuFor = boardId;
+    menuBtnEl = btn;
+    btn.setAttribute('aria-expanded', 'true');
+
+    el.menu.hidden = false;
+    el.menu.style.left = '0px';
+    el.menu.style.top = '0px';
+
+    var r = btn.getBoundingClientRect();
+    var m = el.menu.getBoundingClientRect();
+    var left = Math.min(r.left, window.innerWidth - m.width - 8);
+    var top = r.bottom + 6;
+    if (top + m.height > window.innerHeight - 8) top = Math.max(8, r.top - 6 - m.height);
+    el.menu.style.left = Math.max(8, left) + 'px';
+    el.menu.style.top = top + 'px';
+
+    el.menuDelete.focus();
+  }
+
+  function closeMenu() {
+    if (menuBtnEl) menuBtnEl.setAttribute('aria-expanded', 'false');
+    menuFor = null;
+    menuBtnEl = null;
+    el.menu.hidden = true;
+  }
+
+  el.menuDelete.addEventListener('click', function () {
+    var id = menuFor;
+    closeMenu();
+    if (id) deleteBoard(id);
   });
+
+  document.addEventListener('pointerdown', function (e) {
+    if (menuFor && !el.menu.contains(e.target)) closeMenu();
+  });
+  el.boardList.addEventListener('scroll', function () { if (menuFor) closeMenu(); });
+  window.addEventListener('resize', function () { if (menuFor) closeMenu(); });
 
   el.form.addEventListener('submit', function (e) {
     e.preventDefault();
@@ -737,7 +787,11 @@
   /* Escape leaves link mode. */
   window.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    if (state.linkFrom) {
+    if (menuFor) {
+      var btn = menuBtnEl;
+      closeMenu();
+      if (btn) btn.focus();
+    } else if (state.linkFrom) {
       state.linkFrom = null;
       linkDrag = null;
       syncLinkClasses();

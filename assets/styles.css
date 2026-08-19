@@ -23,8 +23,14 @@
   --geist-success-light: #3291ff;
   --geist-error: #e00000;
 
+  /* Logo — same tokens the Router Department Tracking board uses, so the
+     one inline mark works on both themes. */
+  --logo-fg: #111111;
+  --logo-track: #f8f8f8;
+
   --geist-radius: 6px;
   --geist-shadow-small: 0 5px 10px rgba(0, 0, 0, 0.12);
+  --geist-shadow-menu: 0 8px 30px rgba(0, 0, 0, 0.12);
   --geist-duration: 200ms;
 
   --grid-size: 24px;
@@ -47,7 +53,11 @@
     --geist-border: #333333;
     --geist-error: #ff1a1a;
 
+    --logo-fg: #ffffff;
+    --logo-track: #242424;
+
     --geist-shadow-small: 0 5px 10px rgba(0, 0, 0, 0.6);
+    --geist-shadow-menu: 0 8px 30px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -67,7 +77,11 @@
   --geist-border: #333333;
   --geist-error: #ff1a1a;
 
+  --logo-fg: #ffffff;
+  --logo-track: #242424;
+
   --geist-shadow-small: 0 5px 10px rgba(0, 0, 0, 0.6);
+  --geist-shadow-menu: 0 8px 30px rgba(0, 0, 0, 0.6);
 }
 
 ::selection { background-color: var(--geist-selection); color: #000; }
@@ -109,20 +123,8 @@ input::placeholder, textarea::placeholder { color: var(--geist-accents-3); }
   padding: 0 20px;
   border-bottom: 1px solid var(--geist-border);
 }
-.logo { width: 22px; height: 22px; display: block; }
+.applogo { height: 28px; width: auto; flex: none; display: block; }
 .brand { font-size: 14px; font-weight: 500; }
-
-/* Logo swaps with the theme: the "-Light" file is drawn for light
-   backgrounds, the "-Dark" file for dark ones. */
-.logo-dark { display: none; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .logo-light { display: none; }
-  :root:not([data-theme="light"]) .logo-dark { display: block; }
-}
-:root[data-theme="dark"] .logo-light { display: none; }
-:root[data-theme="dark"] .logo-dark { display: block; }
-:root[data-theme="light"] .logo-light { display: block; }
-:root[data-theme="light"] .logo-dark { display: none; }
 
 .body { display: flex; flex: 1; min-height: 0; }
 
@@ -279,18 +281,77 @@ input::placeholder, textarea::placeholder { color: var(--geist-accents-3); }
   white-space: nowrap;
 }
 .board-row .count { font-size: 12px; color: var(--geist-accents-3); }
-.board-row .remove {
+/* Three-dot menu button, leading the row */
+.board-row .menu-btn {
   display: flex;
   align-items: center;
-  color: var(--geist-accents-3);
-  opacity: .7;
-  border: none;
-  background: none;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-left: -2px;
   padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--geist-accents-3);
+  opacity: .75;
+  cursor: pointer;
+  transition: color .2s ease, background-color .2s ease, opacity .2s ease;
+}
+.board-row:hover .menu-btn, .board-row.is-active .menu-btn { opacity: 1; }
+.board-row .menu-btn:hover,
+.board-row .menu-btn:focus-visible,
+.board-row .menu-btn[aria-expanded="true"] {
+  color: var(--geist-foreground);
+  background: var(--geist-accents-2);
+  opacity: 1;
+}
+.board-row .menu-btn svg { width: 14px; height: 14px; }
+.board-row .menu-btn svg circle { fill: currentColor; stroke: none; }
+
+/* Popup menu — fixed, so the scrolling board list never clips it */
+.menu {
+  position: fixed;
+  z-index: 40;
+  min-width: 168px;
+  padding: 4px;
+  border: 1px solid var(--geist-border);
+  border-radius: var(--geist-radius);
+  background: var(--geist-background);
+  box-shadow: var(--geist-shadow-menu);
+}
+.menu[hidden] { display: none; }
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: var(--geist-accents-5);
   cursor: pointer;
 }
-.board-row:hover .remove, .board-row.is-active .remove { opacity: 1; }
-.board-row .remove:hover, .board-row .remove:focus-visible { color: var(--geist-error); opacity: 1; }
+.menu-item svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.menu-item:hover, .menu-item:focus-visible {
+  background: var(--geist-accents-1);
+  color: var(--geist-foreground);
+  outline: none;
+}
+.menu-item.danger:hover, .menu-item.danger:focus-visible { color: var(--geist-error); }
 
 .sidebar-empty {
   margin: 12px 8px;
@@ -451,7 +512,7 @@ input::placeholder, textarea::placeholder { color: var(--geist-accents-3); }
 .canvas.is-linking .card:hover { border-color: var(--geist-success-light); }
 
 /* Inline feather-style icons */
-svg.i, .card-act svg, .board-row .remove svg, .icon-btn svg {
+svg.i, .card-act svg, .icon-btn svg {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.5;

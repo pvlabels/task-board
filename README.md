@@ -9,8 +9,8 @@ Built from the `Task Board.dc.html` design file, using the Geist UI design token
 ## Use
 
 - **Add a board** — type a product name in the sidebar and press *Add*.
-- **Delete a board** — the *Delete board* button in the toolbar, or the × on any sidebar row.
-  Boards with nodes ask for confirmation first.
+- **Delete a board** — the ⋮ button at the left of any sidebar row opens its menu. Boards with
+  nodes ask for confirmation first.
 - **Add a node** — *Node* drops one on the grid. Each node has a heading and bullets; long text
   wraps onto the next line and the node grows to fit.
 - **Move** — drag a node; it snaps to the 24px dot grid.
@@ -30,7 +30,7 @@ Static HTML, CSS and vanilla JS. No build step, no dependencies.
 index.html          markup shell
 assets/styles.css   Geist tokens (light + dark) and component styles
 assets/app.js       state, rendering, drag, linking, connectors
-assets/DDT-*.svg    logo, swapped with the theme
+assets/DDT-*.svg    favicon (the header mark is inline SVG, themed by CSS)
 ```
 
 ## Run locally

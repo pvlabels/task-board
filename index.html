@@ -25,8 +25,11 @@
 <div class="app">
 
   <header class="topbar">
-    <img class="logo logo-light" src="assets/DDT-Light.svg" alt="DDT">
-    <img class="logo logo-dark" src="assets/DDT-Dark.svg" alt="" aria-hidden="true">
+    <svg class="applogo" viewBox="12 16 221 224" role="img" aria-label="Digital Department">
+      <path fill="var(--logo-track)" d="M42,98h60c16.57,0,30,13.43,30,30h0c0,16.57-13.43,30-30,30h-60c-16.57,0-30-13.43-30-30h0c0-16.57,13.43-30,30-30Z"/>
+      <path fill="var(--logo-fg)" d="M125.67,16H31c-4.42,0-8,3.58-8,8v58.67c0,4.42,3.58,8,8,8h40c4.42,0,8-3.58,8-8v-2.67c0-4.42,3.58-8,8-8h20c51.33,0,70,24.5,70,56s-18.67,56-70,56h-20c-4.42,0-8-3.58-8-8v-2.67c0-4.42-3.58-8-8-8H31c-4.42,0-8,3.58-8,8v58.67c0,4.42,3.58,8,8,8h94.67c72.33,0,107.33-44.33,107.33-112S198,16,125.67,16Z"/>
+      <circle cx="102" cy="128" r="22" fill="#FF453A"/>
+    </svg>
     <span class="brand">Task Board</span>
     <span class="muted-13" id="boardCount"></span>
     <span class="spacer"></span>
@@ -59,10 +62,6 @@
             <svg class="i" viewBox="0 0 24 24"><path d="M15 7h3a5 5 0 0 1 0 10h-3m-6 0H6a5 5 0 0 1 0-10h3M8 12h8"/></svg>
             <span>Link nodes</span>
           </button>
-          <button class="btn btn-danger" id="deleteBoard" type="button">
-            <svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
-            <span>Delete board</span>
-          </button>
           <span class="muted-12" id="hint"></span>
         </div>
 
@@ -88,6 +87,13 @@
 
     </main>
   </div>
+</div>
+
+<div class="menu" id="boardMenu" role="menu" hidden>
+  <button class="menu-item danger" id="menuDelete" type="button" role="menuitem">
+    <svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+    <span>Delete board</span>
+  </button>
 </div>
 
 <script src="assets/app.js"></script>
